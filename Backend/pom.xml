@@ -6,7 +6,11 @@
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
 		<version>3.5.3</version>
+<<<<<<< HEAD
 		<relativePath/> <!-- lookup parent from repository -->
+=======
+		<relativePath/>
+>>>>>>> b4de855 (backend pom file changes)
 	</parent>
 	<groupId>com.LMS</groupId>
 	<artifactId>demo</artifactId>
