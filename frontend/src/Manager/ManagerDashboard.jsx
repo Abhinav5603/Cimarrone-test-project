@@ -1,6 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 
-import { EMPLOYEES_INIT, LEAVE_RECORDS, buildPendingLeaves, TABS } from "./Data/mockData";
+import {
+  getEmployees,
+  getEmployeeLeaves,
+  createEmployee,
+  updateEmployee,
+  updateLeaveStatus,
+} from "../api/managerApi.js";
 
 import OverviewPage       from "./components/OverViewPage";
 import EmployeesPage      from "./components/EmployeePage";
@@ -9,132 +15,192 @@ import ManageStaffPage    from "./components/ManageStaffPage";
 
 export default function ManagerDashboard() {
   const [activeTab, setActiveTab]         = useState("overview");
-  const [employees, setEmployees]         = useState(EMPLOYEES_INIT);
-  const [pendingLeaves, setPendingLeaves] = useState(() =>
-    buildPendingLeaves(EMPLOYEES_INIT, LEAVE_RECORDS)
-  );
+  const [employees,     setEmployees]     = useState([]);
+  const [pendingLeaves, setPendingLeaves] = useState([]);
+  const [loading,       setLoading]       = useState(true);
+  const [error,         setError]         = useState(null);
 
-  // ── Leave action (approve / reject both just remove from pending list for now) ──
-  const handleLeaveAction = (id) =>
-    setPendingLeaves((prev) => prev.filter((l) => l.id !== id));
+  useEffect(() => {
+    loadDashboard();
+  }, []);
 
-  // ── Employee create / update ──
-  const handleEmployeeSave = (modal, form) => {
-    if (modal.mode === "create") {
-      setEmployees((prev) => [
-        ...prev,
-        {
-          id: Date.now(),
-          ...form,
-          salary: Number(form.salary),
-          avatar: form.name
-            .split(" ")
-            .map((w) => w[0])
-            .join("")
-            .slice(0, 2)
-            .toUpperCase(),
-        },
-      ]);
-    } else {
-      setEmployees((prev) =>
-        prev.map((e) =>
-          e.id === modal.data.id ? { ...e, ...form, salary: Number(form.salary) } : e
-        )
+  const loadDashboard = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const emps = await getEmployees();
+      setEmployees(emps);
+
+      const leaveArrays = await Promise.all(
+          emps.map((e) =>
+              getEmployeeLeaves(e.id)
+                  .then((leaves) =>
+                      leaves
+                          .filter((l) => l.status === "PENDING")
+                          .map((l) => ({ ...l, employee: e }))
+                  )
+                  .catch(() => [])
+          )
       );
+      setPendingLeaves(leaveArrays.flat());
+    } catch (err) {
+      setError(err.message || "Failed to load dashboard data");
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handleLeaveAction = useCallback(async (leaveId, action) => {
+    const status = action === "approve" ? "APPROVED" : "REJECTED";
+    try {
+      await updateLeaveStatus(leaveId, status);
+      setPendingLeaves((prev) => prev.filter((l) => l.id !== leaveId));
+    } catch (err) {
+      alert(`Failed to ${action} leave: ${err.message}`);
+    }
+  }, []);
+
+  const handleEmployeeSave = useCallback(async (modal, form) => {
+    try {
+      if (modal.mode === "create") {
+        const created = await createEmployee(form);
+        setEmployees((prev) => [...prev, created]);
+      } else {
+        const updated = await updateEmployee(modal.data.id, form);
+        setEmployees((prev) =>
+            prev.map((e) => (e.id === updated.id ? updated : e))
+        );
+      }
+    } catch (err) {
+      alert(`Failed to save employee: ${err.message}`);
+    }
+  }, []);
+
+  if (loading) {
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+          <div className="text-center space-y-3">
+            <div className="w-10 h-10 border-4 border-violet-600 border-t-transparent
+            rounded-full animate-spin mx-auto" />
+            <p className="text-sm text-slate-500">Loading dashboard…</p>
+          </div>
+        </div>
+    );
+  }
+
+  if (error) {
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+          <div className="text-center space-y-4">
+            <p className="text-2xl">⚠️</p>
+            <p className="text-sm font-semibold text-slate-700">{error}</p>
+            <button
+                onClick={loadDashboard}
+                className="px-4 py-2 text-sm font-semibold bg-violet-600 text-white
+              rounded-xl hover:bg-violet-700 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
+      <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
 
-      {/* ── Top navbar ── */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
+        {/* ── Top navbar ── */}
+        <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
+          <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
 
-          {/* Brand */}
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-600 to-violet-700
+            {/* Brand */}
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-600 to-violet-700
               flex items-center justify-center text-white text-xs font-bold">
-              LM
-            </div>
-            <span className="font-semibold text-slate-800 text-[15px] tracking-tight">
+                LM
+              </div>
+              <span className="font-semibold text-slate-800 text-[15px] tracking-tight">
               LeaveManager
             </span>
-          </div>
+            </div>
 
-          {/* Manager profile */}
-          <div className="flex items-center gap-3">
+            {/* Manager profile */}
+            <div className="flex items-center gap-3">
             <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">
               Tue, 23 Jun 2026
             </span>
-            <div className="flex items-center gap-2 pl-3 border-l border-slate-200">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-violet-600
+              <div className="flex items-center gap-2 pl-3 border-l border-slate-200">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-violet-600
                 flex items-center justify-center text-white text-xs font-semibold">
-                MG
-              </div>
-              <div className="hidden sm:block">
-                <p className="text-xs font-medium text-slate-700 leading-none">Meghna Gupta</p>
-                <p className="text-[11px] text-slate-400 leading-none mt-0.5">Manager</p>
+                  MG
+                </div>
+                <div className="hidden sm:block">
+                  <p className="text-xs font-medium text-slate-700 leading-none">Meghna Gupta</p>
+                  <p className="text-[11px] text-slate-400 leading-none mt-0.5">Manager</p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* ── Tab bar ── */}
-      <div className="bg-white border-b border-slate-200 sticky top-14 z-20">
-        <div className="max-w-7xl mx-auto px-6 flex gap-1">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setActiveTab(t.key)}
-              className={`flex items-center gap-2 px-4 py-3.5 text-sm font-medium border-b-2 transition-colors
+        {/* ── Tab bar ── */}
+        <div className="bg-white border-b border-slate-200 sticky top-14 z-20">
+          <div className="max-w-7xl mx-auto px-6 flex gap-1">
+            {[
+              { key: "overview",  label: "Overview",       icon: "🏠" },
+              { key: "employees", label: "Employees",      icon: "👥" },
+              { key: "leaves",    label: "Leave Requests", icon: "📋" },
+              { key: "manage",    label: "Manage Staff",   icon: "⚙️"  },
+            ].map((t) => (
+                <button
+                    key={t.key}
+                    onClick={() => setActiveTab(t.key)}
+                    className={`flex items-center gap-2 px-4 py-3.5 text-sm font-medium border-b-2 transition-colors
                 ${activeTab === t.key
-                  ? "border-violet-600 text-violet-700"
-                  : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
-                }`}
-            >
-              <span className="text-base leading-none">{t.icon}</span>
-              {t.label}
+                        ? "border-violet-600 text-violet-700"
+                        : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                    }`}
+                >
+                  <span className="text-base leading-none">{t.icon}</span>
+                  {t.label}
 
-              {/* Badge on Leave requests tab */}
-              {t.key === "leaves" && pendingLeaves.length > 0 && (
-                <span className="ml-0.5 bg-amber-100 text-amber-700 text-[11px] font-semibold
+                  {t.key === "leaves" && pendingLeaves.length > 0 && (
+                      <span className="ml-0.5 bg-amber-100 text-amber-700 text-[11px] font-semibold
                   px-1.5 py-0.5 rounded-full">
                   {pendingLeaves.length}
                 </span>
-              )}
-            </button>
-          ))}
+                  )}
+                </button>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* ── Page content ── */}
-      <main className="max-w-7xl mx-auto px-6 py-7">
-        {activeTab === "overview" && (
-          <OverviewPage
-            employees={employees}
-            pendingLeaves={pendingLeaves}
-            onLeaveAction={handleLeaveAction}
-            onNavigate={setActiveTab}
-          />
-        )}
-        {activeTab === "employees" && (
-          <EmployeesPage employees={employees} />
-        )}
-        {activeTab === "leaves" && (
-          <LeaveRequestsPage
-            pendingLeaves={pendingLeaves}
-            onLeaveAction={handleLeaveAction}
-          />
-        )}
-        {activeTab === "manage" && (
-          <ManageStaffPage
-            employees={employees}
-            onSave={handleEmployeeSave}
-          />
-        )}
-      </main>
-    </div>
+        {/* ── Page content ── */}
+        <main className="max-w-7xl mx-auto px-6 py-7">
+          {activeTab === "overview" && (
+              <OverviewPage
+                  employees={employees}
+                  pendingLeaves={pendingLeaves}
+                  onLeaveAction={handleLeaveAction}
+                  onNavigate={setActiveTab}
+              />
+          )}
+          {activeTab === "employees" && (
+              <EmployeesPage employees={employees} />
+          )}
+          {activeTab === "leaves" && (
+              <LeaveRequestsPage
+                  pendingLeaves={pendingLeaves}
+                  onLeaveAction={handleLeaveAction}
+              />
+          )}
+          {activeTab === "manage" && (
+              <ManageStaffPage
+                  employees={employees}
+                  onSave={handleEmployeeSave}
+              />
+          )}
+        </main>
+      </div>
   );
 }

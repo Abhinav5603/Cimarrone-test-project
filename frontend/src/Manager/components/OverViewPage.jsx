@@ -1,5 +1,5 @@
 import { Avatar } from "./SharedComponents";
-import { deptColor } from "../Data/mockData";
+import { deptColor } from "../Data/mockData"; // keep only the color helper
 
 export default function OverviewPage({ employees, pendingLeaves, onLeaveAction, onNavigate }) {
   const stats = [
@@ -17,7 +17,7 @@ export default function OverviewPage({ employees, pendingLeaves, onLeaveAction, 
     },
     {
       label: "Approved this month",
-      value: 6,
+      value: employees.reduce((acc, e) => acc, 0), // placeholder — wire a real stat if your API supports it
       icon: "✅",
       light: "bg-emerald-50 text-emerald-600",
     },
@@ -78,14 +78,14 @@ export default function OverviewPage({ employees, pendingLeaves, onLeaveAction, 
                 </div>
                 <div className="flex gap-1.5 shrink-0">
                   <button
-                    onClick={() => onLeaveAction(lv.id)}
+                    onClick={() => onLeaveAction(lv.id, "approve")}
                     className="text-xs px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700
                       border border-emerald-200 hover:bg-emerald-100 font-medium transition-colors"
                   >
                     ✓ Approve
                   </button>
                   <button
-                    onClick={() => onLeaveAction(lv.id)}
+                    onClick={() => onLeaveAction(lv.id, "reject")}
                     className="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-600
                       border border-red-200 hover:bg-red-100 font-medium transition-colors"
                   >
@@ -119,10 +119,7 @@ export default function OverviewPage({ employees, pendingLeaves, onLeaveAction, 
                   <p className="text-sm font-medium text-slate-800">{emp.name}</p>
                   <p className="text-xs text-slate-400">{emp.email}</p>
                 </div>
-                <span
-                  className={`text-[11px] font-semibold px-2.5 py-1 rounded-full
-                    ${deptColor(emp.department)}`}
-                >
+                <span className={`text-[11px] font-semibold px-2.5 py-1 rounded-full ${deptColor(emp.department)}`}>
                   {emp.department}
                 </span>
               </div>

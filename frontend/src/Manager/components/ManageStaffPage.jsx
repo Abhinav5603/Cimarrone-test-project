@@ -8,7 +8,7 @@ const EMPTY_FORM = {
   password: "",
   department: "",
   salary: "",
-  role: "Employee"
+  role: "EMPLOYEE"
 };
 
 export default function ManageStaffPage({ employees, onSave }) {

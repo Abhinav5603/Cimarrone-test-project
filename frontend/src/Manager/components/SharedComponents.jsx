@@ -117,8 +117,8 @@ export function EmployeeModal({ modal, form, setForm, onSave, onClose }) {
                 focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-300
                 focus:border-violet-400 transition-all"
             >
-              <option value="Employee">Employee</option>
-              <option value="Manager">Manager</option>
+              <option value="EMPLOYEE">EMPLOYEE</option>
+              <option value="MANAGER">MANAGER</option>
             </select>
           </div>
         </div>
