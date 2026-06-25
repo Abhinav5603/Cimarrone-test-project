@@ -3,6 +3,7 @@ package com.LMS.demo.controller;
 import com.LMS.demo.dto.EmployeeRequestDTO;
 import com.LMS.demo.dto.EmployeeResponseDTO;
 import com.LMS.demo.dto.LeaveResponseDTO;
+import com.LMS.demo.dto.LeaveStatusUpdateDTO;
 import com.LMS.demo.security.CustomUserPrincipal;
 import com.LMS.demo.service.EmployeeService;
 import com.LMS.demo.service.LeaveService;
@@ -68,5 +69,16 @@ public class ManagerController {
             @RequestBody EmployeeRequestDTO request
     ) {
         return employeeService.updateEmployee(id, request);
+    }
+    @PutMapping("/leaves/{id}")
+    public LeaveResponseDTO updateLeaveStatus(
+            @PathVariable Long id,
+            @RequestBody LeaveStatusUpdateDTO request
+    ){
+
+        return leaveService.updateLeaveStatus(
+                id,
+                request.getStatus()
+        );
     }
 }

@@ -1,9 +1,21 @@
 import { useState } from "react";
 import { Avatar } from "./SharedComponents";
-import { LEAVE_RECORDS, statusBadge, deptColor } from "../Data/mockData";
+import { getEmployeeLeaves } from "../../api/managerApi.js";
+import { deptColor } from "../Data/mockData";   // keep only the color helper
+
+const STATUS_STYLES = {
+  APPROVED: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
+  REJECTED: "bg-red-50 text-red-600 ring-1 ring-red-200",
+  PENDING:  "bg-amber-50 text-amber-700 ring-1 ring-amber-200",
+};
+
+const statusBadge = (status = "") =>
+  STATUS_STYLES[status.toUpperCase()] ?? "bg-slate-100 text-slate-600";
 
 export default function EmployeesPage({ employees }) {
-  const [selectedEmp, setSelectedEmp] = useState(null);
+  const [selectedEmp,  setSelectedEmp]  = useState(null);
+  const [leaveHistory, setLeaveHistory] = useState([]);
+  const [loadingLeaves, setLoadingLeaves] = useState(false);
   const [search, setSearch] = useState("");
 
   const filtered = employees.filter(
@@ -12,8 +24,26 @@ export default function EmployeesPage({ employees }) {
       e.department.toLowerCase().includes(search.toLowerCase())
   );
 
-  const toggleEmployee = (emp) =>
-    setSelectedEmp((prev) => (prev?.id === emp.id ? null : emp));
+  const handleCardClick = async (emp) => {
+    // clicking the same card again → collapse
+    if (selectedEmp?.id === emp.id) {
+      setSelectedEmp(null);
+      setLeaveHistory([]);
+      return;
+    }
+
+    setSelectedEmp(emp);
+    setLeaveHistory([]);
+    setLoadingLeaves(true);
+    try {
+      const leaves = await getEmployeeLeaves(emp.id);
+      setLeaveHistory(leaves);
+    } catch {
+      setLeaveHistory([]);
+    } finally {
+      setLoadingLeaves(false);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -41,7 +71,7 @@ export default function EmployeesPage({ employees }) {
         {filtered.map((emp) => (
           <div
             key={emp.id}
-            onClick={() => toggleEmployee(emp)}
+            onClick={() => handleCardClick(emp)}
             className={`bg-white rounded-2xl border cursor-pointer p-5 hover:shadow-md transition-all
               ${selectedEmp?.id === emp.id
                 ? "border-violet-400 ring-2 ring-violet-100"
@@ -67,7 +97,7 @@ export default function EmployeesPage({ employees }) {
         ))}
       </div>
 
-      {/* ── Leave history panel (shown when an employee is selected) ── */}
+      {/* ── Leave history panel ── */}
       {selectedEmp && (
         <div className="bg-white rounded-2xl border border-violet-200 mt-2">
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
@@ -79,7 +109,7 @@ export default function EmployeesPage({ employees }) {
               </div>
             </div>
             <button
-              onClick={() => setSelectedEmp(null)}
+              onClick={() => { setSelectedEmp(null); setLeaveHistory([]); }}
               className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100
                 text-slate-400 text-base transition-colors"
             >
@@ -87,35 +117,45 @@ export default function EmployeesPage({ employees }) {
             </button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 text-xs uppercase text-slate-500 tracking-wider">
-                  {["Reason", "Start date", "End date", "Applied on", "Status"].map((h) => (
-                    <th key={h} className="text-left px-6 py-3 font-semibold">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {(LEAVE_RECORDS[selectedEmp.id] || []).map((lv) => (
-                  <tr key={lv.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-3.5 font-medium text-slate-700">{lv.reason}</td>
-                    <td className="px-6 py-3.5 text-slate-500">{lv.startDate}</td>
-                    <td className="px-6 py-3.5 text-slate-500">{lv.endDate}</td>
-                    <td className="px-6 py-3.5 text-slate-400">{lv.appliedDate}</td>
-                    <td className="px-6 py-3.5">
-                      <span
-                        className={`text-xs font-semibold px-2.5 py-1 rounded-full
-                          ${statusBadge(lv.status)}`}
-                      >
-                        {lv.status}
-                      </span>
-                    </td>
+          {/* Loading state */}
+          {loadingLeaves ? (
+            <div className="py-12 flex items-center justify-center gap-2 text-slate-400 text-sm">
+              <div className="w-4 h-4 border-2 border-violet-400 border-t-transparent
+                rounded-full animate-spin" />
+              Loading leave history…
+            </div>
+          ) : leaveHistory.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 text-sm">
+              No leave records found for this employee.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 text-xs uppercase text-slate-500 tracking-wider">
+                    {["Reason", "Start date", "End date", "Applied on", "Status"].map((h) => (
+                      <th key={h} className="text-left px-6 py-3 font-semibold">{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {leaveHistory.map((lv) => (
+                    <tr key={lv.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-3.5 font-medium text-slate-700">{lv.reason}</td>
+                      <td className="px-6 py-3.5 text-slate-500">{lv.startDate}</td>
+                      <td className="px-6 py-3.5 text-slate-500">{lv.endDate}</td>
+                      <td className="px-6 py-3.5 text-slate-400">{lv.appliedDate}</td>
+                      <td className="px-6 py-3.5">
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusBadge(lv.status)}`}>
+                          {lv.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>
